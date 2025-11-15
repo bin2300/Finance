@@ -1,0 +1,701 @@
+# J'etais entrain de concevoir une application de gestion de Buget 
+
+voici les different code :
+
+finance-backend/prisma/schema.prisma
+``` js
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  password     String
+  budgets      Budget[]
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+}
+
+model Budget {
+  id           Int           @id @default(autoincrement())
+  name         String
+  description  String?
+  type         String
+  amount       Float
+  ownerId      Int
+  owner        User          @relation(fields: [ownerId], references: [id])
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+}
+
+model Transaction {
+  id       Int               @id @default(autoincrement())
+  budgetId Int
+  budget   Budget            @relation(fields: [budgetId], references: [id])
+  ownerId  Int
+  owner    User              @relation(fields: [ownerId], references: [id])
+  amount   Float
+  label    String
+  type     String
+  date     DateTime          @default(now())
+  files    TransactionFile[]
+}
+
+model TransactionFile {
+  id            Int         @id @default(autoincrement())
+  transactionId Int
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+
+  fileName     String
+  OriginalName String
+  mimeType     String
+  path         String
+  uploadedAt   DateTime @default(now())
+}
+
+```
+
+le serveur : finance-backend/src/server.js
+``` js 
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import authRoutes from "./routes/auth.js";
+import budgetRoutes from "./routes/budget.js"; // attention au nom du fichier
+import transactionRoutes from "./routes/transaction.js"
+import uploadRoutes from "./routes/uploads.js"
+import statsRoutes from "./routes/stats.js"
+import searchRoutes from "./routes/search.js"
+
+
+dotenv.config();
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Routes
+app.use("/auth", authRoutes);
+app.use("/budgets", budgetRoutes);
+app.use("/transaction",transactionRoutes);
+app.use("/uploads",uploadRoutes);
+app.use("/stats",statsRoutes);
+app.use("/search",searchRoutes);
+// Route test
+app.get("/", (req, res) => {
+  res.send("API Finance Backend OK");
+});
+
+// Lancer le serveur
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+
+``` 
+
+file : finance-backend/src/routes/auth.js
+``` 
+// import express from "express";
+
+
+// const router = express.Router();
+
+
+// // Route test /register
+// router.post("/register",(req, res)=>{
+//     const {email, password} = req.body;
+//     console.log("Register :", email, password);
+//     res.json({message : "Route resuster Ok"});
+// })
+
+
+// // Route  test /login
+// router.post("/login", (req, res) => {
+//   const { email, password } = req.body;
+//   console.log("Login:", email, password);
+//   res.json({ message: "Route login OK" });
+// });
+
+
+// export default router;
+
+import express from "express";
+import bcrypt from "bcryptjs";
+import jwt from 'jsonwebtoken';
+import { prisma } from "../libs/prisma.js"
+
+const router = express.Router();
+
+
+// REGISTER
+router.post("/register", async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) return res.status(400).json({ error: "Email et mot de passe requis" });
+
+    try {
+        // Vérifier si l'utilisateur existe
+        const existingUser = await prisma.user.findUnique({ where: { email } });
+        if (existingUser) return res.status(400).json({ error: "Email deja utilisé" });
+
+        // Hasher ke mot de passe
+        const hashedPassword = await bcrypt.hash(password,10);
+
+        // Creer l'utilisateur
+        const user = await prisma.user.create({
+            data: {email, password: hashedPassword}
+        });
+        res.json({
+            message : "Utilisateur crée avec succès",
+            user : {id: user.id , email : user.email}
+        });
+    } catch (err){
+        res.status(500).json({error : err.message});
+    }
+});
+
+// LOGIN
+// LOGIN
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password)
+    return res.status(400).json({ error: "Email et mot de passe requis" });
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(400).json({ error: "Utilisateur non trouvé" });
+
+    // Vérifier le mot de passe
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ error: "Mot de passe incorrect" });
+
+    const token = jwt.sign(
+      { userId: user.id }, // attention à la casse ici
+      process.env.JWT_SECRET || "secretkey",
+      { expiresIn: "1h" }
+    );
+
+    res.json({ message: "connecté", token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+export default router;
+```
+
+file : budjet.js 
+```
+import express from "express";
+import { prisma } from "../libs/prisma.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
+const router = express.Router();
+
+// Créer un budget
+router.post("/", authMiddleware, async (req, res) => {
+  try {
+    const { name, amount, type, description } = req.body;
+
+    if (!name || !amount || !type) {
+      return res.status(400).json({ error: "Champs manquants" });
+    }
+
+    const budget = await prisma.budget.create({
+      data: {
+        name,
+        amount: parseFloat(amount),
+        type,
+        description: description || null,
+        ownerId: req.user.userId, // juste l'id, Prisma gère la relation automatiquement
+      },
+    });
+
+    res.json({ message: "Budget créé", budget });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Lister tous les budgets de l’utilisateur
+router.get("/", authMiddleware, async (req, res) => {
+  try {
+    const budgets = await prisma.budget.findMany({
+      where: { ownerId: req.user.userId },
+    });
+    res.json(budgets);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Modifier un budget
+router.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, amount, type, description } = req.body;
+
+    const budget = await prisma.budget.findFirst({
+      where: { id: parseInt(id), ownerId: req.user.userId },
+    });
+
+    if (!budget) {
+      return res.status(404).json({ error: "Budget introuvable" });
+    }
+
+    const updated = await prisma.budget.update({
+      where: { id: parseInt(id) },
+      data: {
+        name: name || budget.name,
+
+        amount: amount !== undefined ? parseFloat(amount) : budget.amount,
+        type: type || budget.type,
+        description: description ?? budget.description
+      },
+    });
+
+    res.json({ message: "Budget modifié", budget: updated })
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+})
+
+// Supprimer un budget
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const budget = await prisma.budget.findFirst({
+      where: { id: parseInt(id), ownerId: req.user.userId },
+    });
+
+    if (!budget) {
+      return res.status(404).json({ error: "Budget introuvable" });
+
+
+    }
+
+    await prisma.budget.delete({
+      where: { id: parseInt(id) },
+    });
+    res.json({ message: "Budget supprimé" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+})
+export default router;
+
+``` 
+file : finance-backend/src/routes/transaction.js
+````js 
+import express from "express";
+import { prisma } from "../libs/prisma.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
+const router = express.Router();
+
+// Créer une transaction
+router.post("/", authMiddleware, async (req, res) => {
+    try {
+        const { budgetId, amount, label, type } = req.body;
+
+        if (!budgetId || !amount || !label || !type) {
+            return res.status(400).json({ error: "Champs manquants" });
+        }
+
+        const budget = await prisma.budget.findFirst({
+            where: { id: parseInt(budgetId), ownerId: req.user.userId }
+        });
+
+        if (!budget) return res.status(404).json({ error: "Budget introuvable" });
+
+
+
+
+        const transaction = await prisma.transaction.create({
+            data: {
+                budgetId: parseInt(budgetId),
+                ownerId: req.user.userId,
+                amount: parseFloat(amount), // ici je veux que si le type soit sortie , on soustrait
+                label,
+                type
+            }
+        });
+
+        const updatedAmount = type === "sortie"
+            ? budget.amount - parseFloat(amount)
+            : budget.amount + parseFloat(amount);
+
+        await prisma.budget.update({
+            where: { id: parseInt(budgetId) },
+            data: { amount: updatedAmount }
+        });
+
+        res.json({ message: "Transaction créée", transaction });
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Lister les transactions d'un budget
+router.get("/:budgetId", authMiddleware, async (req, res) => {
+    try {
+        const { budgetId } = req.params;
+        const budget = await prisma.budget.findFirst({
+            where: { id: parseInt(budgetId), ownerId: req.user.userId }
+        });
+
+        if (!budget) return res.status(404).json({ error: "Budget introuvable" });
+
+        const transactions = await prisma.transaction.findMany({
+            where: { budgetId: parseInt(budgetId) }
+        });
+
+        res.json(transactions);
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+// Lister toutes les transactions
+router.get("/",authMiddleware,async(req,res)=>{
+    try{
+        const transactions  = await prisma.transaction.findMany({
+            where :{ownerId : req.user.userId},
+        })
+        res.json(transaction);
+    }catch(err){
+        console.log(err.message);
+        res.status(500).json({error : err.message});
+    }
+}) 
+
+
+// Modifier une transaction
+// Modifier une transaction
+router.put("/:id", authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { amount: newAmountRaw, label, type: newType } = req.body;
+
+        const transaction = await prisma.transaction.findFirst({
+            where: { id: parseInt(id), ownerId: req.user.userId }
+        });
+
+        if (!transaction)
+            return res.status(404).json({ error: "Transaction introuvable" });
+
+        const budget = await prisma.budget.findUnique({
+            where: { id: transaction.budgetId }
+        });
+
+        if (!budget)
+            return res.status(404).json({ error: "Budget introuvable" });
+
+        const oldAmount = transaction.amount;
+        const oldType = transaction.type;
+        const newAmount = newAmountRaw !== undefined ? parseFloat(newAmountRaw) : oldAmount;
+
+        // 1️⃣ Annuler l'effet de l'ancienne transaction
+        let budgetAdjustment = 0;
+        if (oldType === "entree") {
+            budgetAdjustment -= oldAmount;
+        } else if (oldType === "sortie") {
+            budgetAdjustment += oldAmount;
+        }
+
+        // 2️⃣ Appliquer le nouvel effet
+        if (newType === "entree") {
+            budgetAdjustment += newAmount;
+        } else if (newType === "sortie") {
+            budgetAdjustment -= newAmount;
+        }
+
+        // 3️⃣ Mettre à jour le budget
+        const updatedBudget = await prisma.budget.update({
+            where: { id: budget.id },
+            data: { amount: budget.amount + budgetAdjustment }
+        });
+
+        // 4️⃣ Mettre à jour la transaction
+        const updatedTransaction = await prisma.transaction.update({
+            where: { id: transaction.id },
+            data: {
+                amount: newAmount,
+                label: label || transaction.label,
+                type: newType || transaction.type
+            }
+        });
+
+        res.json({
+            message: "Transaction modifiée",
+            transaction: updatedTransaction,
+            budget: updatedBudget
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Supprimer une transaction
+router.delete("/:id", authMiddleware, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const transaction = await prisma.transaction.findFirst({
+            where: { id: parseInt(id), ownerId: req.user.userId }
+        });
+
+        if (!transaction)
+            return res.status(404).json({ error: "Transaction introuvable" });
+
+        // Récupérer le budget
+        const budget = await prisma.budget.findUnique({
+            where: { id: transaction.budgetId }
+        });
+
+        if (!budget)
+            return res.status(404).json({ error: "Budget introuvable" });
+
+        // Ajuster le montant du budget
+        const adjustedAmount = transaction.type === "sortie"
+            ? budget.amount + transaction.amount
+            : budget.amount - transaction.amount;
+
+        await prisma.budget.update({
+            where: { id: budget.id },
+            data: { amount: adjustedAmount }
+        });
+
+        // Supprimer la transaction
+        await prisma.transaction.delete({ where: { id: parseInt(id) } });
+
+        res.json({ message: "Transaction supprimée et budget mis à jour" });
+
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+export default router;
+
+````
+file : finance-backend/src/routes/uploads.js
+````
+import express from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+import { prisma } from "../libs/prisma.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+
+const router = express.Router();
+
+const UPLOAD_DIR = "uploads/transactions/";
+
+// Extensions autorisées
+const allowedExtensions = [".jpeg", ".jpg", ".png", ".webp", ".pdf"];
+
+// ========== MULTER CONFIG ==========
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, UPLOAD_DIR);
+    },
+    filename: (req, file, cb) => {
+        const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+        cb(null, unique + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage,
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!allowedExtensions.includes(ext)) {
+            return cb(new Error("❌ Type de fichier interdit"));
+        }
+        cb(null, true);
+    }
+});
+
+// ===================================================
+// 1️⃣ UPLOAD d’un fichier lié à une transaction
+// ===================================================
+router.post("/:transactionId", authMiddleware, upload.single("file"), async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+
+        const transaction = await prisma.transaction.findFirst({
+            where: { id: parseInt(transactionId), ownerId: req.user.userId }
+        });
+
+        if (!transaction) {
+            return res.status(404).json({ error: "Transaction introuvable" });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ error: "Aucun fichier reçu" });
+        }
+
+        const file = await prisma.transactionFile.create({
+            data: {
+                transactionId: transaction.id,
+                fileName: req.file.filename,
+                OriginalName: req.file.originalname,
+                mimeType: req.file.mimetype,
+                path: req.file.filename
+            }
+        });
+
+        res.json({ message: "Fichier uploadé", file });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ===================================================
+// 2️⃣ Lister les fichiers d'une transaction
+// ===================================================
+router.get("/:transactionId", authMiddleware, async (req, res) => {
+    try {
+        const { transactionId } = req.params;
+
+        const files = await prisma.transactionFile.findMany({
+            where: { transactionId: parseInt(transactionId) }
+        });
+
+        res.json(files);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ===================================================
+// 3️⃣ Télécharger un fichier
+// ===================================================
+router.get("/download/:fileId", authMiddleware, async (req, res) => {
+    try {
+        const { fileId } = req.params;
+
+        const file = await prisma.transactionFile.findUnique({
+            where: { id: parseInt(fileId) },
+            include: {
+                transaction: true
+            }
+        });
+
+        if (!file) return res.status(404).json({ error: "Fichier introuvable" });
+
+        // Vérification du propriétaire
+        if (file.transaction.ownerId !== req.user.userId) {
+            return res.status(403).json({ error: "Non autorisé" });
+        }
+
+        // Sécurité extension
+        const ext = path.extname(file.OriginalName).toLowerCase();
+        if (!allowedExtensions.includes(ext)) {
+            return res.status(403).json({ error: "Téléchargement interdit" });
+        }
+
+        const filePath = path.join(UPLOAD_DIR, file.path);
+
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).json({ error: "Fichier manquant sur le serveur" });
+        }
+
+        // Construction d'un nom propore
+        const dowloadName = file.OriginalName.endsWith(ext) ? file.OriginalName : `${file.OriginalName}.${ext}`
+
+        return res.download(filePath, dowloadName);
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ===================================================
+// 4️ Supprimer un fichier
+// ===================================================
+router.delete("/:fileId", authMiddleware, async (req, res) => {
+    try {
+        const { fileId } = req.params;
+
+        const file = await prisma.transactionFile.findUnique({
+            where: { id: parseInt(fileId) },
+            include: { transaction: true }
+        });
+
+        if (!file) return res.status(404).json({ error: "Fichier introuvable" });
+
+        if (file.transaction.ownerId !== req.user.userId) {
+            return res.status(403).json({ error: "Non autorisé" });
+        }
+
+        // Supprimer fichier du disque
+        const filePath = path.join(UPLOAD_DIR, file.path);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+
+        // Suppr DB
+        await prisma.transactionFile.delete({
+            where: { id: parseInt(fileId) }
+        });
+
+        res.json({ message: "Fichier supprimé" });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+export default router;
+
+``` 
+
+
+Okay : mon objectif maintenant est d'ecrire une route pour faire des recherches :
+
+sur mon front end , on poura faire des recherches via 
+tout les parametres 
+
+mais le nom sera mis en priorité 
+et chaque unite est independante :
+
+c'est a dire :
+lorceque l'on fait la recherche :
+
+- les budjet 
+- les transaction
+- les fichiers 
+
+s'affiche tous independament 
+( les trois en meme temps qui corresponde au filtre )
+- on aura 2 chemps : un pour choisir le filtre : 1 seul filtre a la fois
+- un pour entrer la valeur 
+
+search.js est vide , aide moi a l'ecrire

@@ -5,8 +5,6 @@ EMAIL="test2@test.com"
 PASSWORD="123456"
 TOKEN=""
 
-FILE_PATH=""
-
 # -----------------------------
 # LOGIN
 # -----------------------------
@@ -56,7 +54,7 @@ upload_file() {
 }
 
 # -----------------------------
-# LISTER FICHIERS D’UNE TRANSACTION
+# LISTER FICHIERS D'UNE TRANSACTION
 # -----------------------------
 list_files() {
     if [ -z "$TOKEN" ]; then echo "❌ Token manquant. Fais un login."; return; fi
@@ -64,6 +62,42 @@ list_files() {
     read -p "ID de la transaction : " TID
 
     curl -s -X GET "$API_URL/uploads/$TID" \
+        -H "Authorization: Bearer $TOKEN" | jq
+}
+
+# -----------------------------
+# TÉLÉCHARGER UN FICHIER
+# -----------------------------
+download_file() {
+    if [ -z "$TOKEN" ]; then echo "❌ Token manquant. Fais un login."; return; fi
+
+    read -p "ID du fichier à télécharger : " FID
+    read -p "Nom du fichier de sortie : " OUT
+
+    echo "➡️  Téléchargement du fichier..."
+
+    curl -s -X GET "$API_URL/uploads/download/$FID" \
+        -H "Authorization: Bearer $TOKEN" \
+        --output "$OUT"
+
+    if [ $? -eq 0 ]; then
+        echo "🎉 Fichier téléchargé → $OUT"
+    else
+        echo "❌ Échec du téléchargement"
+    fi
+}
+
+# -----------------------------
+# SUPPRIMER UN FICHIER
+# -----------------------------
+delete_file() {
+    if [ -z "$TOKEN" ]; then echo "❌ Token manquant. Fais un login."; return; fi
+
+    read -p "ID du fichier à supprimer : " FID
+
+    echo "➡️  Suppression du fichier..."
+
+    curl -s -X DELETE "$API_URL/uploads/$FID" \
         -H "Authorization: Bearer $TOKEN" | jq
 }
 
@@ -78,8 +112,10 @@ menu() {
         echo "=================================="
         echo "1) Login"
         echo "2) Lister transactions"
-        echo "3) Upload fichier vers une transaction"
-        echo "4) Lister fichiers d’une transaction"
+        echo "3) Upload fichier"
+        echo "4) Lister fichiers"
+        echo "5) Télécharger fichier"
+        echo "6) Supprimer fichier"
         echo "0) Quitter"
         echo "=================================="
 
@@ -90,6 +126,8 @@ menu() {
             2) list_transactions ;;
             3) upload_file ;;
             4) list_files ;;
+            5) download_file ;;
+            6) delete_file ;;
             0) exit ;;
             *) echo "🤨 Option invalide (¬_¬)" ;;
         esac

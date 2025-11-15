@@ -1,26 +1,100 @@
-// import express from "express";
+/**
+ * @swagger
+ * tags:
+ *   name: Auth
+ *   description: Gestion de l'authentification des utilisateurs
+ */
 
+/**
+ * @swagger
+ * /auth/register:
+ *   post:
+ *     summary: Créer un nouvel utilisateur
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: L'adresse email de l'utilisateur
+ *                 example: "test@test.com"
+ *               password:
+ *                 type: string
+ *                 description: Le mot de passe de l'utilisateur
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Utilisateur créé avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     email:
+ *                       type: string
+ *       400:
+ *         description: Paramètres manquants ou email déjà utilisé
+ *       500:
+ *         description: Erreur serveur
+ */
 
-// const router = express.Router();
+/**
+ * @swagger
+ * /auth/login:
+ *   post:
+ *     summary: Connexion d'un utilisateur existant
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: L'adresse email de l'utilisateur
+ *                 example: "test@test.com"
+ *               password:
+ *                 type: string
+ *                 description: Le mot de passe de l'utilisateur
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Utilisateur connecté avec succès
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 token:
+ *                   type: string
+ *                   description: Jeton JWT à utiliser pour les routes protégées
+ *       400:
+ *         description: Paramètres manquants, utilisateur non trouvé ou mot de passe incorrect
+ *       500:
+ *         description: Erreur serveur
+ */
 
-
-// // Route test /register
-// router.post("/register",(req, res)=>{
-//     const {email, password} = req.body;
-//     console.log("Register :", email, password);
-//     res.json({message : "Route resuster Ok"});
-// })
-
-
-// // Route  test /login
-// router.post("/login", (req, res) => {
-//   const { email, password } = req.body;
-//   console.log("Login:", email, password);
-//   res.json({ message: "Route login OK" });
-// });
-
-
-// export default router;
 
 import express from "express";
 import bcrypt from "bcryptjs";

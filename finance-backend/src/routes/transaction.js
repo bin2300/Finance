@@ -1,3 +1,215 @@
+/**
+ * @swagger
+ * tags:
+ *   name: Transactions
+ *   description: Gestion des transactions pour l'utilisateur
+ */
+
+/**
+ * @swagger
+ * /transactions:
+ *   post:
+ *     summary: Créer une nouvelle transaction
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       description: Données de la transaction
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - budgetId
+ *               - amount
+ *               - label
+ *               - type
+ *             properties:
+ *               budgetId:
+ *                 type: integer
+ *               amount:
+ *                 type: number
+ *               label:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [entree, sortie]
+ *     responses:
+ *       200:
+ *         description: Transaction créée et budget mis à jour
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 transaction:
+ *                   $ref: '#/components/schemas/Transaction'
+ */
+
+/**
+ * @swagger
+ * /transactions:
+ *   get:
+ *     summary: Lister toutes les transactions de l'utilisateur
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Liste des transactions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Transaction'
+ */
+
+/**
+ * @swagger
+ * /transactions/{budgetId}:
+ *   get:
+ *     summary: Lister toutes les transactions d'un budget spécifique
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: budgetId
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID du budget
+ *     responses:
+ *       200:
+ *         description: Liste des transactions pour le budget
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Transaction'
+ */
+
+/**
+ * @swagger
+ * /transactions/{id}:
+ *   put:
+ *     summary: Modifier une transaction et ajuster le budget
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID de la transaction
+ *     requestBody:
+ *       description: Nouvelles valeurs pour la transaction
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               amount:
+ *                 type: number
+ *               label:
+ *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [entree, sortie]
+ *     responses:
+ *       200:
+ *         description: Transaction modifiée et budget ajusté
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 transaction:
+ *                   $ref: '#/components/schemas/Transaction'
+ *                 budget:
+ *                   $ref: '#/components/schemas/Budget'
+ */
+
+/**
+ * @swagger
+ * /transactions/{id}:
+ *   delete:
+ *     summary: Supprimer une transaction et ajuster le budget
+ *     tags: [Transactions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: ID de la transaction
+ *     responses:
+ *       200:
+ *         description: Transaction supprimée et budget mis à jour
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ */
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Transaction:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         budgetId:
+ *           type: integer
+ *         ownerId:
+ *           type: integer
+ *         amount:
+ *           type: number
+ *         label:
+ *           type: string
+ *         type:
+ *           type: string
+ *           enum: [entree, sortie]
+ *         date:
+ *           type: string
+ *           format: date-time
+ *     Budget:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: integer
+ *         name:
+ *           type: string
+ *         amount:
+ *           type: number
+ *         type:
+ *           type: string
+ *         description:
+ *           type: string
+ *         ownerId:
+ *           type: integer
+ */
+
+
+
+
 import express from "express";
 import { prisma } from "../libs/prisma.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
