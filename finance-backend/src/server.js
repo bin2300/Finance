@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/auth.js";
 import budgetRoutes from "./routes/budget.js"; // attention au nom du fichier
 import transactionRoutes from "./routes/transaction.js"
+import uploadRoutes from "./routes/uploads.js"
+
 
 dotenv.config();
 const app = express();
@@ -16,6 +18,7 @@ app.use(express.json());
 app.use("/auth", authRoutes);
 app.use("/budgets", budgetRoutes);
 app.use("/transaction",transactionRoutes);
+app.use("/uploads",uploadRoutes);
 // Route test
 app.get("/", (req, res) => {
   res.send("API Finance Backend OK");
@@ -26,3 +29,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+

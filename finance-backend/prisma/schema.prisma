@@ -29,13 +29,26 @@ model Budget {
 }
 
 model Transaction {
-  id       Int      @id @default(autoincrement())
+  id       Int               @id @default(autoincrement())
   budgetId Int
-  budget   Budget   @relation(fields: [budgetId], references: [id])
+  budget   Budget            @relation(fields: [budgetId], references: [id])
   ownerId  Int
-  owner    User     @relation(fields: [ownerId], references: [id])
+  owner    User              @relation(fields: [ownerId], references: [id])
   amount   Float
   label    String
   type     String
-  date     DateTime @default(now())
+  date     DateTime          @default(now())
+  files    TransactionFile[]
+}
+
+model TransactionFile {
+  id            Int         @id @default(autoincrement())
+  transactionId Int
+  transaction   Transaction @relation(fields: [transactionId], references: [id])
+
+  fileName     String
+  OriginalName String
+  mimeType     String
+  path         String
+  uploadedAt   DateTime @default(now())
 }
